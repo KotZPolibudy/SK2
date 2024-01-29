@@ -1,28 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <sys/socket.h>
 #include <sys/types.h>
+#include <string.h>
+#include <unistd.h>
+#include <stdbool.h>
+#include <pthread.h>
+#include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
 #include <netdb.h>
-#include <string.h>
-#include <unistd.h>
 #include <sys/wait.h>
 #include <sys/select.h>
-#include <stdbool.h>
 #include <bits/pthreadtypes.h>
-#include <pthread.h>
 #include <openssl/ssl.h>
 #include <openssl/crypto.h>
-#define MAX_MESSAGE_LENGTH 20
+
+#define MAX_MESSAGE_LENGTH 66
 /*
-0: Game state
-1,2: start square
-3,4: target square
-5: promotion (otherwise 0)
+0: Stan gry    // g - gramy w - wygrana
+1-64: stan pól
+65: \n
 */
 
-//Handle different buffer sizes using _write and _read
 int _write(SSL* ssl, char *buf, int len)
 {
 	while (len > 0) {
@@ -30,6 +29,7 @@ int _write(SSL* ssl, char *buf, int len)
 	    len -= i;
 	    buf += i;
 	}
+    return 0;
 }
 
 int _read(SSL* ssl, char *buf, int bufsize)
@@ -55,24 +55,33 @@ struct player{
     char message[MAX_MESSAGE_LENGTH];
     int opponent_fd;
     SSL* ssl;
-    bool color; //O: White, 1: Black
+    bool color;
 };
 
 struct player* players;
 
-int initialize_games(int size)
+
+    pthread_mutex_t mut_count;  // Ilość graczy w sekcji krytycznej
+    pthread_mutex_t mut_waiting; // Tylko jeden gracz czeka
+    pthread_mutex_t mut_dlugo_jeszcze; // Anty aktywne czekanie
+
+    int player_count = 0, waiting_fd = -1;  // do parowania
+    char buf[256];
+    SSL_CTX* ctx;
+
+int game_init(int size)
 {
-    players = (struct player*)calloc(size, sizeof(struct player));
+    players = (struct player*)calloc(size+1, sizeof(struct player));
     if (players == NULL) {
-        printf("Cannot create games \n");
+        printf("NULL PLAYERS ERR\n");
         exit(0);
     } else {
-        printf("Gamespace created.\n");
+        printf("Game innit.\n");
         return 1;
     }
 }
 
-int update_players_count(int size)
+int update_count_players(int size)
 {
     struct player* temp = players;
     players = (struct player*)realloc(players, size * sizeof(struct player));
@@ -84,22 +93,12 @@ int update_players_count(int size)
     }
 }
 
-int player_count = 3;
-int waiting_player_fd = -1;
-char buf[256];
-SSL_CTX* ctx; // SSL Context
-
-pthread_mutex_t count_players_mutex; // Checking player number
-pthread_mutex_t waiting_player_mutex; //Only 1 player can wait for their opponent
-pthread_mutex_t can_play_mutex; //Helping mutex to avoid active waiting
-
-void* cthread(void* arg)
-{
-    struct cln* c = (struct cln*)arg;
+void* cthread(void* arg) {
+    struct cln *c = (struct cln *) arg;
     printf("[%lu] new connection from: %s:%d\n",
-        (unsigned long int)pthread_self(),
-        inet_ntoa((struct in_addr)c->caddr.sin_addr),
-        ntohs(c->caddr.sin_port)
+           (unsigned long int) pthread_self(),
+           inet_ntoa((struct in_addr) c->caddr.sin_addr),
+           ntohs(c->caddr.sin_port)
     );
     printf("%d\n", c->cfd);
 
@@ -119,68 +118,62 @@ void* cthread(void* arg)
         free(c);
         return NULL;
     }
-    pthread_mutex_lock(&waiting_player_mutex);
-    if(waiting_player_fd == -1)
+   pthread_mutex_lock(&mut_waiting);
+    if(waiting_fd == -1)
     {
-        //Noone is waiting, so this player will
-        waiting_player_fd = c->cfd;
-        //Make ther players able to enter the lobby
-        pthread_mutex_unlock(&waiting_player_mutex);
-        //This player won't start playing until some other player appears in the lobby
-        pthread_mutex_lock(&can_play_mutex);
+        waiting_fd = c->cfd;
+        pthread_mutex_unlock(&mut_waiting);
+        pthread_mutex_lock(&mut_dlugo_jeszcze);
     }
-    else
+    else //jeśli ktoś czeka
     {
-        //There is one waiting player
-        //Match them
-        players[c->cfd].opponent_fd = waiting_player_fd;
-        players[waiting_player_fd].opponent_fd = c->cfd;
-        //Assign colors
+        players[c->cfd].opponent_fd = waiting_fd;
+        players[waiting_fd].opponent_fd = c->cfd;
         players[c->cfd].color = 1;
-        players[waiting_player_fd].color = 0;
+        players[waiting_fd].color = 0;
         players[c->cfd].message[0] = 'U';
-        players[waiting_player_fd].message[0] = 'U';
-        //Free the waiting spot
-        waiting_player_fd = -1;
-        //Allow waiting player to start the game
-        pthread_mutex_unlock(&can_play_mutex);
-        //Allow new players enter the lobby
-        pthread_mutex_unlock(&waiting_player_mutex);
+        players[waiting_fd].message[0] = 'U';
+        waiting_fd = -1;
+        //To uwalnia czekającego
+        pthread_mutex_unlock(&mut_dlugo_jeszcze);
+        pthread_mutex_unlock(&mut_waiting);
     }
     printf("Let's play: %d, %d \n", c->cfd, players[c->cfd].opponent_fd);
     if(players[c->cfd].color == 0)
     {
-        //Inform this player, that they are playing white
+        //Ty masz czerwone...
         _write(players[c->cfd].ssl, "W\n", 2);
     }
     else
     {
-        //Inform this player, that they are playing black
+        //A ty czarne...
         _write(players[c->cfd].ssl, "B\n", 2);
     }
-    //Take into account only 1 player
-    //There is no need to duplicate the games
     if(players[c->cfd].color == 0)
     {
-        //Continously read and write until the game is finished
+
+        /*
+        I teraz ruchy na zmiane.
+        Aby uniknąć problemów z podwójnym ruchem z jakiejś strony
+        zaimplementuję przekazywanie boardstate'u po ruchu do drugiego gracza
+
+        Nie jest to najlepsze podejście jeśli idzie o możliwości naruszania fair-play, ale jednocześnie ułatwi
+        to ogromnie implementacje serwera, który i tak jest już dość skomplikowany 'as is'.
+        */
         while(1)
         {
-            //Read move from white player
+            // Czytaj pierwszego, wyślij drugiemu.
             _read(players[c->cfd].ssl, players[c->cfd].message, sizeof(players[c->cfd].message));
-            //Send this move to the black player
             _write(players[players[c->cfd].opponent_fd].ssl, players[c->cfd].message, sizeof(players[c->cfd].message));
-            //_write(players[c->cfd].opponent_fd, "\n", 1);
-            //Check if white ended the game
+            //Koniec?
             if(players[c->cfd].message[0] != 'U')
             {
                 break;
             }
-            //Read move from black player
+            //Czytaj drugiego, wyślij pierwszemu
             _read(players[players[c->cfd].opponent_fd].ssl, players[players[c->cfd].opponent_fd].message, sizeof(players[players[c->cfd].opponent_fd].message));
-            //Send this move to the white player
             _write(players[c->cfd].ssl, players[players[c->cfd].opponent_fd].message, sizeof(players[players[c->cfd].opponent_fd].message));
-            //_write(c->cfd, "\n", 1);
-            //Check if black ended the game
+            //Koniec?
             if(players[players[c->cfd].opponent_fd].message[0] != 'U')
             {
                 break;
@@ -189,14 +182,14 @@ void* cthread(void* arg)
         close(players[c->cfd].opponent_fd);
         close(c->cfd);
     }
-
+    
     free(c);
-    // Lock mutex to safely decrement player_count
-    pthread_mutex_lock(&count_players_mutex);
+    pthread_mutex_lock(&mut_count);
     player_count--;
-    pthread_mutex_unlock(&count_players_mutex); // Unlock mutex
+    pthread_mutex_unlock(&mut_count);
 	return 0;
 }
+
 
 int main(int argc, char** argv)
 {
@@ -213,8 +206,6 @@ int main(int argc, char** argv)
     bind(sfd, (struct sockaddr*)&saddr, sizeof(saddr));
     listen(sfd, 10);
 
-    initialize_games(3);
-
     SSL_library_init();
     SSL_load_error_strings();
     ctx = SSL_CTX_new(TLS_server_method());
@@ -222,7 +213,7 @@ int main(int argc, char** argv)
         printf("SSL context creation error.\n");
         return EXIT_FAILURE;
     }
-    // Set certificate and key file paths
+    // Ścieżki do certyfikatu i klucza prywatnego serwera dla SSL
     if (SSL_CTX_use_certificate_file(ctx, "server.crt", SSL_FILETYPE_PEM) <= 0 ||
         SSL_CTX_use_PrivateKey_file(ctx, "server.key", SSL_FILETYPE_PEM) <= 0) {
         printf("Certificate or key loading error.\n");
@@ -230,23 +221,27 @@ int main(int argc, char** argv)
         return EXIT_FAILURE;
     }
 
-    pthread_mutex_lock(&can_play_mutex); //Noone can play at the start without an opponent
+    game_init(2);
+
+    // żeby grać musi mieć przeciwnika
+    pthread_mutex_lock(&mut_dlugo_jeszcze);
+    // while - game loop
     while (1) {
-        struct cln* c = malloc(sizeof(struct cln));
+        struct cln* c = (cln*)malloc(sizeof(struct cln));
         sl = sizeof(c->caddr);
         c->cfd = accept(sfd, (struct sockaddr*)&c->caddr, &sl);
         if (c->cfd != -1) {
-            pthread_mutex_lock(&count_players_mutex); // Lock mutex before incrementing player_count
+            pthread_mutex_lock(&mut_count); // licz ile graczy - sekcja krytyczna
             player_count++;
-            //Don't allow too many players
-            if (update_players_count(c->cfd + 1) == -1) {
-                write(c->cfd, "E\n", 2); //Error message, no place for this player
-                pthread_mutex_unlock(&count_players_mutex);
-                //Don't create a new process
-                continue;
+            // parowanie przeciwników (upewnić się że jest dokładnie dwóch, załadować do (zmiennych żeby znali siebie nawzajem?)
+            if (update_count_players(c->cfd + 1) == -1) {
+                write(c->cfd, "E\n", 2); //Error - zbyt wielu graczy
+                pthread_mutex_unlock(&mut_count);
+                continue; // ale samotnego gracza przypadkiem nie wysyłaj do gry
             }
-            pthread_mutex_unlock(&count_players_mutex);// Unlock mutex after modifying player_count
+            pthread_mutex_unlock(&mut_count); //wyjście z krytycznej - odblokuj wszystko
             pthread_create(&tid, NULL, cthread, c);
+            // i pthread_detach żeby tamta parka poszła sobie grać -> cthread ma implementacje gry.
             pthread_detach(tid);
         }
     }

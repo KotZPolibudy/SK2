@@ -18,7 +18,6 @@ def main():
     context.check_hostname = False
     context.verify_mode=ssl.CERT_NONE
 
-
     context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1
 
     conn = context.wrap_socket(sock, server_hostname=HOST)

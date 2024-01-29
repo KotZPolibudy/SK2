@@ -3,17 +3,14 @@ import sys
 import ssl
 
 
-def receive_message(client_socket):
-    res = b""
-    while True:
-        chunk = client_socket.recv(256)
-        if not chunk:
-            break
-        res += chunk
-        if b'\n' in res:
-            res = res.split(b'\n', 1)[0]
-            break
-        return res.decode()
+def receive_message(socket):
+    res = socket.recv()
+    if b'\n' in res:
+        res = res.split(b'\n', 1)[0]
+    res = res.decode()
+    if '\n' in res:
+        res = res.split('\n', 1)[0]
+    return res
 
 
 def send_message(sock, message):
@@ -21,13 +18,13 @@ def send_message(sock, message):
 
 
 def check_winner(the_move):
-    if the_move[0] == "W":
+    if the_move[-1] == "W":
         print("Wygrana!")
         return True
-    elif the_move[0] == "B":
+    elif the_move[-1] == "B":
         print("Przegrana, niestety")
         return True
-    elif the_move[0] == "D":
+    elif the_move[-1] == "D":
         print("Remis.")
         return True
     else:
@@ -47,9 +44,9 @@ def main(host, port):
 
     print("Oczekiwanie na przeciwnika... \n")
 
-    color_message = ssl_socket.recv().decode()
+    color_message = receive_message(ssl_socket)
     print(color_message)
-    if color_message == 'W':
+    if color_message[0] == 'W':
         my_color = 1
         print("Grasz jako białe!")
     else:
@@ -59,29 +56,29 @@ def main(host, port):
     mylastmove = "Jeszcze nic!"
     lastmove = "Jeszcze tez nic!"
     mymove = "nico"
-    server_res ="nie interere"
+    server_res = "nie interere"
 
     while running:
-        print(mylastmove)
-        print(lastmove)
+        print("Moj ostatni ruch: ", mylastmove)
+        print("Ostatni ruch przeciwnika; ", lastmove)
 
         if my_color == 1:
-            mylastmove = mymove
+            mylastmove = mymove[:5]
             mymove = input()
             send_message(ssl_socket, mymove)
             if check_winner(mymove):
                 break
 
-            lastmove = server_res
-            server_res = ssl_socket.recv().decode()
+            lastmove = server_res[:5]
+            server_res = receive_message(ssl_socket)
             print(server_res)
 
         else:
-            lastmove = server_res
-            server_res = ssl_socket.recv().decode()
+            lastmove = server_res[:5]
+            server_res = receive_message(ssl_socket)
             print(server_res)
 
-            mylastmove = mymove
+            mylastmove = mymove[:5]
             mymove = input()
             send_message(ssl_socket, mymove)
             if check_winner(mymove):
@@ -94,6 +91,7 @@ def main(host, port):
         a = input("Wpisz EXIT żeby wyjść")
         if a == "EXIT":
             break
+
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
