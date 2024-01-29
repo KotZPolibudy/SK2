@@ -40,12 +40,14 @@ def main(host, port):
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
 
+    context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1    # deprecated, ale chyba pomaga
+
     client_socket = socket.create_connection((host, port))
     ssl_socket = context.wrap_socket(client_socket, server_hostname=host)
 
     print("Oczekiwanie na przeciwnika... \n")
 
-    color_message = receive_message(ssl_socket)
+    color_message = ssl_socket.recv().decode()
     print(color_message)
     if color_message == 'W':
         my_color = 1
@@ -71,12 +73,12 @@ def main(host, port):
                 break
 
             lastmove = server_res
-            server_res = receive_message(ssl_socket)
+            server_res = ssl_socket.recv().decode()
             print(server_res)
 
         else:
             lastmove = server_res
-            server_res = receive_message(ssl_socket)
+            server_res = ssl_socket.recv().decode()
             print(server_res)
 
             mylastmove = mymove
