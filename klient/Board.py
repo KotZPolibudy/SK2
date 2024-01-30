@@ -3,11 +3,12 @@ from Tile import Tile
 from Pawn import Pawn
 
 class Board:
-	def __init__(self,tile_width, tile_height, board_size):
+	def __init__(self, tile_width, tile_height, board_size, socket):
 		self.tile_width = tile_width
 		self.tile_height = tile_height
 		self.board_size = board_size
 		self.selected_piece = None
+		self.sock = socket
 
 		self.turn = "black"
 		self.is_jump = False
@@ -25,6 +26,9 @@ class Board:
 
 		self.tile_list = self._generate_tiles()
 		self._setup()
+
+	def send_simple_move(self, sock, message):
+		sock.sendall(f"{message}\n".encode())
 
 	def _generate_tiles(self):
 		output = []
@@ -56,19 +60,23 @@ class Board:
 			y = y // self.tile_height
 		clicked_tile = self.get_tile_from_pos((x, y))
 
-		if self.selected_piece is None:
-			if clicked_tile.occupying_piece is not None:
-				if clicked_tile.occupying_piece.color == self.turn:
-					self.selected_piece = clicked_tile.occupying_piece
+		if self.selected_piece is None:                      # jeśli nie była wybrana figury
+			if clicked_tile.occupying_piece is not None:     #  a właśnie jakąś kliknięto
+				if clicked_tile.occupying_piece.color == self.turn:    # i to taką swojego koloru
+					self.selected_piece = clicked_tile.occupying_piece      # to jest zaznaczona
 		elif self.selected_piece._move(clicked_tile):
 			if not self.is_jump:
 				self.turn = 'red' if self.turn == 'black' else 'black'
+				send_simple_move()
 			else:
+				append_move()
 				if len(clicked_tile.occupying_piece.valid_jumps()) == 0:
 					self.turn = 'red' if self.turn == 'black' else 'black'
-		elif clicked_tile.occupying_piece is not None:
-			if clicked_tile.occupying_piece.color == self.turn:
-				self.selected_piece = clicked_tile.occupying_piece
+					send_complex_move()
+					clear_append_move()
+		elif clicked_tile.occupying_piece is not None:      # jeśli kliknieto na figure
+			if clicked_tile.occupying_piece.color == self.turn:  #  i taka swojego koloru
+				self.selected_piece = clicked_tile.occupying_piece   # to ja wybierz
 
 	def draw(self, display):
 		if self.selected_piece is not None:
