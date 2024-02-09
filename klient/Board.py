@@ -10,7 +10,7 @@ class Board:
 		self.selected_piece = None
 		self.sock = socket
 
-		self.turn = "black"
+		self.turn = "red"
 		self.is_jump = False
 
 		self.config = [

@@ -3,8 +3,8 @@ import sys
 import ssl
 
 
-def receive_message(socket):
-    res = socket.recv()
+def receive_message(ssocket):
+    res = ssocket.recv()
     if b'\n' in res:
         res = res.split(b'\n', 1)[0]
     res = res.decode()
@@ -15,6 +15,17 @@ def receive_message(socket):
 
 def send_message(sock, message):
     sock.sendall(f"{message}\n".encode())
+
+
+def print_board_scheme():
+    print(".. 01 .. 02 .. 03 .. 04 \n"
+          "05 .. 06 .. 07 .. 08 .. \n"
+          ".. 09 .. 10 .. 11 .. 12 \n"
+          "13 .. 14 .. 15 .. 16 .. \n"
+          ".. 17 .. 18 .. 19 .. 20 \n"
+          "21 .. 22 .. 23 .. 24 .. \n"
+          ".. 25 .. 26 .. 27 .. 28 \n"
+          "29 .. 30 .. 31 .. 32 .. \n\n")
 
 
 def check_winner(the_move):
@@ -33,7 +44,7 @@ def check_winner(the_move):
 
 def print_curr_board():
     global board
-    i = 0
+    i = 1
     for double_row in range(4):
         print(f" . {board[i]} . {board[i+1]} . {board[i+2]} . {board[i+3]} \n {board[i+4]} . {board[i+5]} . {board[i+6]} . {board[i+7]}")
         i += 8
@@ -59,13 +70,27 @@ def makeboard(old_board, start, finish):
     return new_board
 
 
-def make_move_from_input(move_a, move_b):
+def make_move_from_input_text():
     global board
+    global legal_moves
+    global legal_captures
+    start = input("Podaj skąd się ruszasz: ")
+    finish = input("Podaj dokąd się ruszasz: ")
+    s = int(start)
+    f = int(finish)
     a = "U"
-    a += move_a
-    a += move_b
-    a += makeboard(board, move_a, move_b)
-    return a
+    while True:
+        if board[s] != "." and board[f] == ".":
+            if [s, f] in legal_moves:
+                a = "U" + start + finish
+                return a
+            elif [s, f] in legal_captures:
+                for x in range(5, 29):
+                    if [s, x] in legal_moves and [x, f] in legal_moves and board[x] != ".":
+                        a = "U" + start + finish
+                        return a
+
+        print("Podaj prawidlowy ruch!")
 
 
 def make_the_move(MOVE):
@@ -75,12 +100,13 @@ def make_the_move(MOVE):
     board = makeboard(board, int(move_start), int(move_fin))
 
 
-def make_the_move2(raw_move):
+def make_the_jump(raw_move):
     global board
     i = 0
     while raw_move[i] == 'U':
         move_start = raw_move[i+1:i+3]
         move_fin = raw_move[i+3:i+5]
+        i += 5
         # board = makejump  skoki kurcze
 
 
@@ -88,7 +114,7 @@ def main(host, port):
     global board
     global legal_moves
     global legal_captures
-    board = "bbbbbbbbbbbb........wwwwwwwwwwww"
+    board = "Pbbbbbbbbbbbb........wwwwwwwwwwww"  # pierwszy znak nie ma znaczenia, oznacza Planszę
 
     running = True
     context = ssl.create_default_context()
@@ -117,34 +143,35 @@ def main(host, port):
     server_res = "nie interere"
 
     while running:
+        print("Current boardstate: ")
+        print_curr_board()
         print("Moj ostatni ruch: ", mylastmove)
         print("Ostatni ruch przeciwnika; ", lastmove)
 
         if my_color == 1:
-            mylastmove = mymove[:5]
             mymove = input()
-            make_the_move(mymove)
+            # make_the_move(mymove)
             send_message(ssl_socket, mymove)
             if check_winner(mymove):
                 break
 
-            lastmove = server_res[:5]
             server_res = receive_message(ssl_socket)
             print(server_res)
-            make_the_move(server_res)
+            # make_the_move(server_res)
 
         else:
-            lastmove = server_res[:5]
             server_res = receive_message(ssl_socket)
             print(server_res)
-            make_the_move(server_res)
+            # make_the_move(server_res)
 
-            mylastmove = mymove[:5]
             mymove = input()
-            make_the_move()
+            # make_the_move()
             send_message(ssl_socket, mymove)
             if check_winner(mymove):
                 break
+        mylastmove = mymove[:5]
+        lastmove = server_res[:5]
+
 
     # po grze:
     ssl_socket.close()  # rozłącz się
@@ -155,6 +182,7 @@ def main(host, port):
             break
 
     """
+    pomocniczy schemat planszy:
     . b . b . b . b
     b . b . b . b .
     . b . b . b . b

@@ -18,7 +18,7 @@ class Checkers:
 		board.draw(self.screen)
 		pygame.display.update()
 
-	def receive_message(socket):
+	def receive_message(self, socket):
 		res = socket.recv()
 		if b'\n' in res:
 			res = res.split(b'\n', 1)[0]
@@ -32,6 +32,7 @@ class Checkers:
 
 	def main(self, window_width, window_height, host, port):
 
+
 		context = ssl.create_default_context()
 		context.check_hostname = False
 		context.verify_mode = ssl.CERT_NONE
@@ -43,7 +44,7 @@ class Checkers:
 
 		print("Oczekiwanie na przeciwnika... \n")
 
-		color_message = receive_message(ssl_socket)
+		color_message = self.receive_message(ssl_socket)
 		print("Grasz jako: ", color_message)
 		if color_message[0] == 'W':
 			my_color = 1

@@ -1,3 +1,4 @@
+// gcc mojserwer.C -o mojserver -lssl -lcrypto <- aby skomplilować
 #include <stdio.h>
 #include <stdlib.h>
 #include <sys/types.h>
@@ -241,12 +242,12 @@ int main(int argc, char** argv)
             }
             pthread_mutex_unlock(&mut_count); //wyjście z krytycznej - odblokuj wszystko
             pthread_create(&tid, NULL, cthread, c);
-            // i pthread_detach żeby tamta parka poszła sobie grać -> cthread ma implementacje gry.
+            // i pthread_detach żeby tamta parka poszła sobie grać -> cthread ma implementacje przekazywania sobie wiadomości.
             pthread_detach(tid);
         }
     }
 
     SSL_CTX_free(ctx);
     close(sfd);
-    return EXIT_SUCCESS;
+    return 0;
 }
