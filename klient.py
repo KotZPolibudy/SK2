@@ -2,63 +2,111 @@ import socket
 import sys
 import ssl
 import tkinter as tk
+from PIL import Image, ImageTk
+import os
+
+last_clicked = None
+first_click = None
+is_first_click = True
+image_dir = "klient/images"
 
 
-class CheckersGUI:
-    def __init__(self, master):
-        self.master = master
-        self.master.title("Checkers")
-
-        self.canvas = tk.Canvas(self.master, width=400, height=400, bg="white")
-        self.canvas.pack()
-
-        self.last_clicked = None  # Store the ID of the last clicked black square
-        self.first_click = None  # Store the ID of the first clicked black square
-        self.is_first_click = True  # Flag to indicate whether it's the first click in the sequence
-
-        self.draw_board()
-
-    def draw_board(self):
-        for row in range(8):
-            for col in range(8):
-                color = "darkgreen" if (row + col) % 2 == 1 else "white"
-                square_id = self.canvas.create_rectangle(col * 50, row * 50, (col + 1) * 50, (row + 1) * 50, fill=color)
-                if color == "darkgreen":
-                    self.canvas.tag_bind(square_id, "<Button-1>", lambda event, square_id=square_id: self.on_click(event, square_id))
-                else:
-                    self.canvas.tag_bind(square_id, "<Button-1>", lambda event: self.reset_clicked())
-
-    def on_click(self, event, square_id):
-        col = event.x // 50
-        row = event.y // 50
-        if (row + col) % 2 == 1:  # Dark green square
-            square_number = self.get_square_number(row, col)
-            if self.is_first_click:
-                self.first_click = square_number
-                self.is_first_click = False
-            else:
-                print("Clicked functional:", self.first_click, square_number)
-                self.is_first_click = True
-            if self.last_clicked:
-                self.canvas.itemconfig(self.last_clicked, outline='')  # Clear previous highlighting
-            self.canvas.itemconfig(square_id, outline='red')  # Highlight current dark green square
-            self.last_clicked = square_id
-        else:
-            self.reset_clicked()
-            print("Clicked white")
-
-    def reset_clicked(self):
-        if self.last_clicked:
-            self.canvas.itemconfig(self.last_clicked, outline='')  # Clear previous highlighting
-            self.last_clicked = None
-            self.first_click = None
-            self.is_first_click = True
-
-    def get_square_number(self, row, col):
+def refresh_board(canvas, board_string):
+    board_string = board_string[1:]
+    for i in range(len(board_string)):
+        row = i // 4
         if row % 2 == 0:
-            return (row * 4) + (col // 2) + 1
+            col = (i % 4) * 2 + 1
         else:
-            return ((row - 1) * 4) + ((col - 1) // 2) + 6
+            col = (i % 4) * 2
+        pawn_type = board_string[i]
+        draw_pawn(canvas, row, col, pawn_type)
+
+
+def draw_board(canvas):
+    canvas.pawn_images = []
+    for row in range(8):
+        for col in range(8):
+            color = "darkgreen" if (row + col) % 2 == 1 else "white"
+            square_id = canvas.create_rectangle(col * 50, row * 50, (col + 1) * 50, (row + 1) * 50, fill=color)
+            if color == "darkgreen":
+                canvas.tag_bind(square_id, "<Button-1>", lambda event, square_id=square_id: on_click(event, square_id))
+            else:
+                canvas.tag_bind(square_id, "<Button-1>", lambda event: reset_clicked())
+
+
+def draw_pawn(canvas, row, col, pawn_type):
+    if pawn_type == ".":
+        return  # No image, just blank button
+
+    color = "white" if pawn_type.lower() == "w" else "black"
+    is_king = pawn_type.isupper()
+    pawn_name = "king" if is_king else "pawn"
+    filename = os.path.join(image_dir, f"{color}-{pawn_name}.png")
+
+    image = Image.open(filename)
+    image = image.resize((40, 40))
+    pawn_image = ImageTk.PhotoImage(image)
+    pawn_button = tk.Button(canvas, image=pawn_image, borderwidth=0, highlightthickness=0,
+                            command=lambda row=row, col=col: on_pawn_click(row, col))
+    pawn_button.image = pawn_image  # Keep a reference to prevent garbage collection
+    canvas.create_window((col * 50 + 25, row * 50 + 25), window=pawn_button)
+    canvas.pawn_buttons.append(pawn_button)
+
+
+def on_click(event, square_id):
+    global last_clicked, first_click, is_first_click
+    col = event.x // 50
+    row = event.y // 50
+    if (row + col) % 2 == 1:  # Dark green square
+        square_number = get_square_number(row, col)
+        if is_first_click:
+            first_click = square_number
+            is_first_click = False
+        else:
+            # print("Clicked functional:", first_click, square_number)
+            move_from_input(first_click, square_number)  # Call move_from_input function with clicked squares
+            is_first_click = True
+        if last_clicked:
+            canvas.itemconfig(last_clicked, outline='')  # Clear previous highlighting
+        canvas.itemconfig(square_id, outline='red')  # Highlight current dark green square
+        last_clicked = square_id
+    else:
+        reset_clicked()
+        # print("Clicked white")
+
+
+def on_pawn_click(row, col):
+    global last_clicked, first_click, is_first_click
+    field_number = get_square_number(row, col)
+    # print("Pawn clicked at field number:", field_number)
+    reset_clicked()
+    first_click = field_number
+    is_first_click = False
+    canvas.itemconfig(field_number, outline='red')
+    last_clicked = field_number
+
+
+
+def reset_clicked():
+    global last_clicked, first_click, is_first_click
+    if last_clicked:
+        canvas.itemconfig(last_clicked, outline='')  # Clear previous highlighting
+        last_clicked = None
+        first_click = None
+        is_first_click = True
+
+
+def get_square_number(row, col):
+    if row % 2 == 0:
+        return (row * 4) + (col // 2) + 1
+    else:
+        return ((row - 1) * 4) + ((col - 1) // 2) + 6
+
+
+def move_from_input(start, finish):
+    # logic for handling the move from GUI input goes here
+    print(f"Move from {start} to {finish}")
 
 
 def receive_message(ssocket):
@@ -120,7 +168,7 @@ def makeboard(old_board, start, finish):
         old_board = new_board
         if finish < start:
             start, finish = finish, start
-        for x in range(5,29):
+        for x in range(5, 29):
             if [start, x] in legal_moves and [x, finish] in legal_moves:
                 new_board = old_board[:x] + "." + old_board[x+1:]
     return new_board
@@ -150,7 +198,6 @@ def make_move_from_input_text():
                         a = "U" + start + finish
                         return a
 
-
         print("Podaj prawidlowy ruch!")
 
 
@@ -178,22 +225,18 @@ def main(host, port):
     global legal_captures
     board = "Pbbbbbbbbbbbb........wwwwwwwwwwww"  # pierwszy znak nie ma znaczenia, oznacza Planszę
 
-    root = tk.Tk()
-    gui = CheckersGUI(root)
-    root.mainloop()
+    global canvas
 
     running = True
     context = ssl.create_default_context()
     context.check_hostname = False
     context.verify_mode = ssl.CERT_NONE
-
     context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1  # deprecated, ale chyba pomaga
-
     client_socket = socket.create_connection((host, port))
     ssl_socket = context.wrap_socket(client_socket, server_hostname=host)
 
+    # Połączenie z przeciwnikiem
     print("Oczekiwanie na przeciwnika... \n")
-
     color_message = receive_message(ssl_socket)
     print(color_message)
     if color_message[0] == 'W':
@@ -208,6 +251,18 @@ def main(host, port):
     mymove = "nico"
     server_res = "nie interere"
 
+    # tutaj rzeczy z GUI, włączenie "gry" po znalezieniu przeciwnika
+    root = tk.Tk()
+    root.title("Wracaby")
+    canvas = tk.Canvas(root, width=400, height=400, bg="white")
+    canvas.pack()
+    canvas.pawn_images = []
+    canvas.pawn_buttons = []
+    draw_board(canvas)
+    refresh_board(canvas, board)
+    root.mainloop()
+
+    # stare - do przeprowadzenia gry tekstowo
     while running:
         print_curr_board()
         print("Moj ostatni ruch: ", mylastmove)
@@ -238,7 +293,6 @@ def main(host, port):
                 break
         mylastmove = mymove[:5]
         lastmove = server_res[:5]
-
 
     # po grze:
     ssl_socket.close()  # rozłącz się
@@ -297,4 +351,3 @@ if __name__ == "__main__":
 
         # gameplay loop
         main(ghost, gport)
-

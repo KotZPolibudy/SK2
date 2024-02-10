@@ -83,7 +83,6 @@ def on_pawn_click(row, col):
     last_clicked = field_number
 
 
-
 def reset_clicked():
     global last_clicked, first_click, is_first_click
     if last_clicked:
@@ -112,7 +111,7 @@ def main():
 
     canvas = tk.Canvas(root, width=400, height=400, bg="white")
     canvas.pack()
-
+    canvas.pawn_images = []
     canvas.pawn_buttons = []
 
     draw_board(canvas)
