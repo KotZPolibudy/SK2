@@ -45,28 +45,26 @@ def check_winner(the_move):
 def print_curr_board():
     global board
     i = 1
+    print("Current boardstate: ")
     for double_row in range(4):
-        print(f" . {board[i]} . {board[i+1]} . {board[i+2]} . {board[i+3]} \n {board[i+4]} . {board[i+5]} . {board[i+6]} . {board[i+7]}")
+        print(f" . {board[i]} . {board[i+1]} . {board[i+2]} . {board[i+3]} \n {board[i+4]} . {board[i+5]} . {board[i+6]} . {board[i+7]} .")
         i += 8
 
 
 def makeboard(old_board, start, finish):
     s = old_board[start]
-    new_board = ""
     if start < finish:
         new_board = old_board[:start] + "." + old_board[start + 1:finish] + s + old_board[finish + 1:]
-        # new_board = old_board[:start]
-        # new_board += "."
-        # new_board += old_board[start+1 : finish]
-        # new_board += s
-        # new_board += old_board[finish+1 :]
     else:
         new_board = old_board[:finish] + s + old_board[finish + 1:start] + "." + old_board[start + 1:]
-        # new_board = old_board[:finish]
-        # new_board += s
-        # new_board += old_board[finish + 1: start]
-        # new_board += "."
-        # new_board += old_board[start + 1:]
+    # jeszcze if bicie to usuniecie bitego
+    if abs(start-finish) > 6:
+        old_board = new_board
+        if finish < start:
+            start, finish = finish, start
+        for x in range(5,29):
+            if [start, x] in legal_moves and [x, finish] in legal_moves:
+                new_board = old_board[:x] + "." + old_board[x+1:]
     return new_board
 
 
@@ -74,14 +72,13 @@ def make_move_from_input_text():
     global board
     global legal_moves
     global legal_captures
-    start = input("Podaj skąd się ruszasz: ")
-    finish = input("Podaj dokąd się ruszasz: ")
-    s = int(start)
-    f = int(finish)
-    a = "U"
     while True:
+        start = input("Podaj skąd się ruszasz: ")
+        finish = input("Podaj dokąd się ruszasz: ")
+        s = int(start)
+        f = int(finish)
         if board[s] != "." and board[f] == ".":
-            if [s, f] in legal_moves:
+            if [s, f] in legal_moves or [f, s] in legal_moves:
                 a = "U" + start + finish
                 return a
             elif [s, f] in legal_captures:
@@ -89,6 +86,12 @@ def make_move_from_input_text():
                     if [s, x] in legal_moves and [x, f] in legal_moves and board[x] != ".":
                         a = "U" + start + finish
                         return a
+            elif [f, s] in legal_captures:
+                for x in range(5, 29):
+                    if [f, x] in legal_moves and [x, s] in legal_moves and board[x] != ".":
+                        a = "U" + start + finish
+                        return a
+
 
         print("Podaj prawidlowy ruch!")
 
@@ -98,6 +101,7 @@ def make_the_move(MOVE):
     move_start = MOVE[1:3]   # wytnij pole z ruchu i przerob na int
     move_fin = MOVE[3:5]
     board = makeboard(board, int(move_start), int(move_fin))
+    print_curr_board()
 
 
 def make_the_jump(raw_move):
@@ -143,29 +147,30 @@ def main(host, port):
     server_res = "nie interere"
 
     while running:
-        print("Current boardstate: ")
         print_curr_board()
         print("Moj ostatni ruch: ", mylastmove)
         print("Ostatni ruch przeciwnika; ", lastmove)
 
         if my_color == 1:
-            mymove = input()
-            # make_the_move(mymove)
+            # mymove = input()
+            mymove = make_move_from_input_text()
+            make_the_move(mymove)
             send_message(ssl_socket, mymove)
             if check_winner(mymove):
                 break
 
             server_res = receive_message(ssl_socket)
             print(server_res)
-            # make_the_move(server_res)
+            make_the_move(server_res)
 
         else:
             server_res = receive_message(ssl_socket)
             print(server_res)
-            # make_the_move(server_res)
+            make_the_move(server_res)
 
-            mymove = input()
-            # make_the_move()
+            # mymove = input()
+            mymove = make_move_from_input_text()
+            make_the_move(mymove)
             send_message(ssl_socket, mymove)
             if check_winner(mymove):
                 break
