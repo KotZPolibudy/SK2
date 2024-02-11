@@ -108,28 +108,52 @@ def move_from_input(start, finish):
     global board
     global legal_moves
     global legal_captures
+    global ssl_socket
     print(f"Move from {start} to {finish}")
 
     pass
     s = int(start)
     f = int(finish)
+    start = str(s)
+    finish = str(f)
     if board[s] != "." and board[f] == ".":
         if [s, f] in legal_moves or [f, s] in legal_moves:
             a = "U" + start + finish
-            return a
+            # return a
+            board = makeboard(board, s, f)
+            send_message(ssl_socket, a)
+            server_res = receive_message(ssl_socket)
+            make_the_move(server_res)
+
         elif [s, f] in legal_captures:
             for x in range(5, 29):
                 if [s, x] in legal_moves and [x, f] in legal_moves and board[x] != ".":
                     a = "U" + start + finish
-                    return a
+                    # return a
+                    # return a
+                    board = makeboard(board, s, f)
+                    send_message(ssl_socket, a)
+                    server_res = receive_message(ssl_socket)
+                    make_the_move(server_res)
         elif [f, s] in legal_captures:
             for x in range(5, 29):
                 if [f, x] in legal_moves and [x, s] in legal_moves and board[x] != ".":
                     a = "U" + start + finish
-                    return a
+                    # return a
+                    board = makeboard(board, s, f)
+                    send_message(ssl_socket, a)
+                    server_res = receive_message(ssl_socket)
+                    make_the_move(server_res)
 
     print("Podaj prawidlowy ruch!")
 
+def handleturn(start, finish, a):
+    global board
+    global ssl_socket
+    board = makeboard(board, start, finish)
+    send_message(ssl_socket, a)
+    server_res = receive_message(ssl_socket)
+    move=make_the_move(server_res)
 
 
 def receive_message(ssocket):
@@ -229,7 +253,7 @@ def make_the_move(MOVE):
     move_start = MOVE[1:3]   # wytnij pole z ruchu i przerob na int
     move_fin = MOVE[3:5]
     board = makeboard(board, int(move_start), int(move_fin))
-    print_curr_board()
+    # print_curr_board()
 
 
 def make_the_jump(raw_move):
@@ -246,6 +270,7 @@ def main(host, port):
     global board
     global legal_moves
     global legal_captures
+    global ssl_socket
     board = "Pbbbbbbbbbbbb........wwwwwwwwwwww"  # pierwszy znak nie ma znaczenia, oznacza Planszę
 
     global canvas
