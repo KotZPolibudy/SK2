@@ -105,8 +105,31 @@ def get_square_number(row, col):
 
 
 def move_from_input(start, finish):
-    # logic for handling the move from GUI input goes here
+    global board
+    global legal_moves
+    global legal_captures
     print(f"Move from {start} to {finish}")
+
+    pass
+    s = int(start)
+    f = int(finish)
+    if board[s] != "." and board[f] == ".":
+        if [s, f] in legal_moves or [f, s] in legal_moves:
+            a = "U" + start + finish
+            return a
+        elif [s, f] in legal_captures:
+            for x in range(5, 29):
+                if [s, x] in legal_moves and [x, f] in legal_moves and board[x] != ".":
+                    a = "U" + start + finish
+                    return a
+        elif [f, s] in legal_captures:
+            for x in range(5, 29):
+                if [f, x] in legal_moves and [x, s] in legal_moves and board[x] != ".":
+                    a = "U" + start + finish
+                    return a
+
+    print("Podaj prawidlowy ruch!")
+
 
 
 def receive_message(ssocket):
