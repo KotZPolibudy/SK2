@@ -310,7 +310,7 @@ def main(host, port):
     refresh_board(canvas, board)
     root.mainloop()
 
-    # stare - do przeprowadzenia gry tekstowo
+    # stare - do przeprowadzenia gry tekstowo - ale działa, a GUI powoduje problemy :(
     while running:
         print_curr_board()
         print("Moj ostatni ruch: ", mylastmove)
