@@ -108,7 +108,7 @@ def move_from_input(start, finish):
     global board
     global legal_moves
     global legal_captures
-    global ssl_socket
+    # global ssl_socket
     print(f"Move from {start} to {finish}")
 
     pass
@@ -121,7 +121,7 @@ def move_from_input(start, finish):
             a = "U" + start + finish
             # return a
             board = makeboard(board, s, f)
-            send_message(ssl_socket, a)
+            send_message_globalsock(a)
             server_res = receive_message(ssl_socket)
             make_the_move(server_res)
 
@@ -168,6 +168,12 @@ def receive_message(ssocket):
 
 def send_message(sock, message):
     sock.sendall(f"{message}\n".encode())
+
+
+def send_message_globalsock(message):
+    global ssl_socket
+    ssl_socket.sendall(f"{message}\n".encode())
+
 
 
 def print_board_scheme():
