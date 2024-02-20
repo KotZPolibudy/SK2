@@ -2,6 +2,19 @@
 Gra Warcaby - serwer obsługujący zdalne połączenia od klientów,
 dobieranie ich w pary i przeprowadzenie rozgrywki w warcaby.
 
+# Kompilacja i uruchamianie
+
+dla serwera, należy użyć:
+
+gcc serwer.C -o server -lssl -lcrypto -pthread
+
+
+dla klienta, wystarczy użyć "pip install nazwa" dla odpowiednich modułów (pygame...) znajdujących się na początku pliku, aby je zainstalować, a potem użyć polecenia
+
+python warcabyklient.py hostname port 
+
+gdzie domyślny port dla załączonego serwera to 1234
+
 # Zasada działania - plan
 Serwer - pisany w C, pod system linux
 - Serwer odbiera od klienta informacje o gotowości do gry

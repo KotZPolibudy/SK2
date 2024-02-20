@@ -12,6 +12,7 @@ image_dir = "klient/images"
 
 
 def refresh_board(canvas, board_string):
+    global ssl_socket
     board_string = board_string[1:]
     for i in range(len(board_string)):
         row = i // 4
@@ -56,6 +57,7 @@ def draw_pawn(canvas, row, col, pawn_type):
 
 def on_click(event, square_id):
     global last_clicked, first_click, is_first_click
+    global canvas, board
     col = event.x // 50
     row = event.y // 50
     if (row + col) % 2 == 1:  # Dark green square
@@ -66,6 +68,8 @@ def on_click(event, square_id):
         else:
             # print("Clicked functional:", first_click, square_number)
             move_from_input(first_click, square_number)  # Call move_from_input function with clicked squares
+            refresh_board(canvas, board)
+            enemy_turn = True
             is_first_click = True
         if last_clicked:
             canvas.itemconfig(last_clicked, outline='')  # Clear previous highlighting
@@ -108,10 +112,10 @@ def move_from_input(start, finish):
     global board
     global legal_moves
     global legal_captures
-    # global ssl_socket
+    global ssl_socket
+    err = True
     print(f"Move from {start} to {finish}")
 
-    pass
     s = int(start)
     f = int(finish)
     start = str(s)
@@ -121,31 +125,25 @@ def move_from_input(start, finish):
             a = "U" + start + finish
             # return a
             board = makeboard(board, s, f)
-            send_message_globalsock(a)
-            server_res = receive_message(ssl_socket)
-            make_the_move(server_res)
+            err = False
 
         elif [s, f] in legal_captures:
             for x in range(5, 29):
                 if [s, x] in legal_moves and [x, f] in legal_moves and board[x] != ".":
                     a = "U" + start + finish
                     # return a
-                    # return a
                     board = makeboard(board, s, f)
-                    send_message(ssl_socket, a)
-                    server_res = receive_message(ssl_socket)
-                    make_the_move(server_res)
+                    err = False
         elif [f, s] in legal_captures:
             for x in range(5, 29):
                 if [f, x] in legal_moves and [x, s] in legal_moves and board[x] != ".":
                     a = "U" + start + finish
                     # return a
                     board = makeboard(board, s, f)
-                    send_message(ssl_socket, a)
-                    server_res = receive_message(ssl_socket)
-                    make_the_move(server_res)
+                    err = False
 
-    print("Podaj prawidlowy ruch!")
+    if err:
+        print("Podaj prawidlowy ruch!")
 
 def handleturn(start, finish, a):
     global board
@@ -276,18 +274,11 @@ def main(host, port):
     global board
     global legal_moves
     global legal_captures
-    global ssl_socket
-    board = "Pbbbbbbbbbbbb........wwwwwwwwwwww"  # pierwszy znak nie ma znaczenia, oznacza Planszę
+    board = "Pbbbbbbbbbbbbeeeeeeeewwwwwwwwwwww"  # pierwszy znak nie ma znaczenia, oznacza Planszę
 
     global canvas
 
     running = True
-    context = ssl.create_default_context()
-    context.check_hostname = False
-    context.verify_mode = ssl.CERT_NONE
-    context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1  # deprecated, ale chyba pomaga
-    client_socket = socket.create_connection((host, port))
-    ssl_socket = context.wrap_socket(client_socket, server_hostname=host)
 
     # Połączenie z przeciwnikiem
     print("Oczekiwanie na przeciwnika... \n")
@@ -327,6 +318,7 @@ def main(host, port):
             mymove = make_move_from_input_text()
             make_the_move(mymove)
             send_message(ssl_socket, mymove)
+            print_curr_board()
             if check_winner(mymove):
                 break
 
@@ -395,6 +387,8 @@ legal_captures = [[1, 10], [2, 9], [2, 11], [3, 10], [3, 12], [4, 11],
                   [17, 26], [18, 25], [18, 27], [19, 26], [19, 28], [20, 27],
                   [21, 30], [22, 29], [22, 31], [23, 30], [23, 32], [24, 31]]
 
+global ssl_socket
+
 if __name__ == "__main__":
 
     if len(sys.argv) != 3:
@@ -404,4 +398,10 @@ if __name__ == "__main__":
         gport = int(sys.argv[2])
 
         # gameplay loop
+        context = ssl.create_default_context()
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+        context.options |= ssl.OP_NO_TLSv1 | ssl.OP_NO_TLSv1_1  # deprecated, ale chyba pomaga
+        client_socket = socket.create_connection((ghost, gport))
+        ssl_socket = context.wrap_socket(client_socket, server_hostname=ghost)
         main(ghost, gport)

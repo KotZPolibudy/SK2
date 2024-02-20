@@ -27,8 +27,6 @@ class Board:
 		self.tile_list = self._generate_tiles()
 		self._setup()
 
-	def send_simple_move(self, sock, message):
-		sock.sendall(f"{message}\n".encode())
 
 	def _generate_tiles(self):
 		output = []
@@ -67,13 +65,9 @@ class Board:
 		elif self.selected_piece._move(clicked_tile):
 			if not self.is_jump:
 				self.turn = 'red' if self.turn == 'black' else 'black'
-				send_simple_move()
 			else:
-				append_move()
 				if len(clicked_tile.occupying_piece.valid_jumps()) == 0:
 					self.turn = 'red' if self.turn == 'black' else 'black'
-					send_complex_move()
-					clear_append_move()
 		elif clicked_tile.occupying_piece is not None:      # jeśli kliknieto na figure
 			if clicked_tile.occupying_piece.color == self.turn:  #  i taka swojego koloru
 				self.selected_piece = clicked_tile.occupying_piece   # to ja wybierz

@@ -154,9 +154,7 @@ void* cthread(void* arg) {
     {
 
         /*
-        I teraz ruchy na zmiane.
-        Aby uniknąć problemów z podwójnym ruchem z jakiejś strony
-        zaimplementuję przekazywanie boardstate'u po ruchu do drugiego gracza
+        Gracze przesyłają sobie ruchy a serwer ich *nie weryfikuje*
 
         Nie jest to najlepsze podejście jeśli idzie o możliwości naruszania fair-play, ale jednocześnie ułatwi
         to ogromnie implementacje serwera, który i tak jest już dość skomplikowany 'as is'.
