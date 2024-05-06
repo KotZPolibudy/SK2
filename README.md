@@ -1,3 +1,13 @@
+# Jeśli ktokolwiek tu zagląda, zawróć, serio jeśli szuaksz tu czegokolwiek przydatnego to chyba tylko po to żeby wytknąć mi to albo zobaczyć falę zażenowania na mojej twarzy gdy wspomnisz o tym kodzie
+
+
+
+
+
+
+
+
+
 # Sieci komputerowe 2 - projekt zaliczeniowy
 Gra Warcaby - serwer obsługujący zdalne połączenia od klientów,
 dobieranie ich w pary i przeprowadzenie rozgrywki w warcaby.
